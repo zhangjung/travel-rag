@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="基于 Multi-Agent、混合检索与实时调研的个性化旅行规划工作台"
+    />
+    <title>Travel RAG · 智能旅行规划工作台</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}" />
+  </head>
+  <body data-mode="{{ mode }}">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Travel RAG 首页">
+        <span class="brand-mark" aria-hidden="true">旅</span>
+        <span class="brand-name">Travel RAG</span>
+        <span class="brand-subtitle">Multi-Agent 智能旅行规划</span>
+      </a>
+      <div class="system-status" aria-label="系统运行状态">
+        <button id="saved-plans-open" class="knowledge-open" type="button">
+          我的行程
+        </button>
+        <button id="knowledge-open" class="knowledge-open" type="button">
+          管理知识库
+        </button>
+        <span class="status-item">
+          <span class="status-icon" aria-hidden="true">▤</span>
+          知识库 <strong id="knowledge-count">--</strong> 条
+        </span>
+        <span class="status-item">
+          <span class="status-dot" id="api-dot" aria-hidden="true"></span>
+          <span id="api-state">API 检查中</span>
+        </span>
+        <span class="mode-badge">
+          <i aria-hidden="true"></i>
+          {{ mode | upper }}
+        </span>
+      </div>
+    </header>
+
+    <main class="page-shell">
+      <section class="hero-card" aria-labelledby="page-title">
+        <div class="hero-copy">
+          <p class="eyebrow">EVIDENCE-FIRST TRAVEL INTELLIGENCE</p>
+          <h1 id="page-title">让调研先找到证据，再开始规划</h1>
+          <p>
+            先基于真实案例与实时信息完成调研，再由规划 Agent 生成可执行的个性化行程。
+          </p>
+        </div>
+        <ol class="hero-pipeline" aria-label="系统工作流程">
+          <li>
+            <span class="pipeline-icon">⌕</span>
+            <strong>RAG 检索</strong>
+          </li>
+          <li>
+            <span class="pipeline-icon">研</span>
+            <strong>调研 Agent</strong>
+          </li>
+          <li>
+            <span class="pipeline-icon">规</span>
+            <strong>规划 Agent</strong>
+          </li>
+          <li>
+            <span class="pipeline-icon">✓</span>
+            <strong>规则校验</strong>
+          </li>
+          <li>
+            <span class="pipeline-icon">审</span>
+            <strong>审核 Agent</strong>
+          </li>
+        </ol>
+      </section>
+
+      <section class="workspace">
+        <form id="plan-form" class="request-panel">
+          <div class="section-heading">
+            <div>
+              <span class="section-kicker">TRAVEL BRIEF</span>
+              <h2>旅行需求</h2>
+            </div>
+            <span class="section-index">01</span>
+          </div>
+
+          <fieldset>
+            <legend>基础信息</legend>
+            <label>
+              <span>目的地</span>
+              <span class="input-shell">
+                <span class="field-icon" aria-hidden="true">⌖</span>
+                <input
+                  name="destination"
+                  value="北京"
+                  maxlength="50"
+                  autocomplete="off"
+                  required
+                />
+              </span>
+            </label>
+            <div class="grid-two">
+              <label>
+                <span>天数</span>
+                <input name="days" type="number" value="4" min="1" max="14" required />
+              </label>
+              <label>
+                <span>预算（元）</span>
+                <input
+                  name="budget"
+                  type="number"
+                  value="6000"
+                  min="1"
+                  max="1000000"
+                  required
+                />
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>旅行画像</legend>
+            <label>
+              <span>出行人群 <small>使用逗号分隔</small></span>
+              <input name="travelers" value="3位成人,1名儿童" required />
+            </label>
+            <label>
+              <span>兴趣偏好 <small>使用逗号分隔</small></span>
+              <input name="interests" value="历史,亲子" />
+            </label>
+            <div class="field-label">行程节奏</div>
+            <div class="segment-control" role="radiogroup" aria-label="行程节奏">
+              <label>
+                <input type="radio" name="pace" value="relaxed" checked />
+                <span>舒缓</span>
+              </label>
+              <label>
+                <input type="radio" name="pace" value="balanced" />
+                <span>均衡</span>
+              </label>
+              <label>
+                <input type="radio" name="pace" value="intensive" />
+                <span>紧凑</span>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>其他限制</legend>
+            <label>
+              <span>限制条件 <small>可选，使用逗号分隔</small></span>
+              <textarea name="constraints">每天仅一个高体力核心景点,午间需要休息</textarea>
+            </label>
+          </fieldset>
+
+          <button id="submit-button" type="submit">
+            <span class="button-label">开始调研与规划</span>
+            <span class="button-arrow" aria-hidden="true">→</span>
+          </button>
+          <div class="form-status">
+            <span class="status-dot" aria-hidden="true"></span>
+            <p id="status" aria-live="polite">
+              {{ mode | capitalize }} 模式已就绪
+            </p>
+          </div>
+        </form>
+
+        <section class="result-panel" aria-labelledby="result-title">
+          <div class="result-heading">
+            <div>
+              <span class="section-kicker">AGENT OUTPUT</span>
+              <h2 id="result-title">智能规划结果</h2>
+            </div>
+            <div class="result-actions">
+              <span id="request-id" class="request-id">等待任务</span>
+              <button id="save-plan" class="save-plan" type="button" hidden>
+                <span aria-hidden="true">＋</span>
+                保存到我的行程
+              </button>
+              <button id="download-markdown" class="download-markdown" type="button" hidden>
+                <span aria-hidden="true">↓</span>
+                下载 Markdown
+              </button>
+            </div>
+          </div>
+
+          <div class="metric-grid" aria-label="规划关键指标">
+            <article class="metric-card">
+              <span class="metric-icon" aria-hidden="true">⌖</span>
+              <div><strong id="metric-destination">--</strong><small>目的地</small></div>
+            </article>
+            <article class="metric-card">
+              <span class="metric-icon" aria-hidden="true">□</span>
+              <div><strong id="metric-days">-- 天</strong><small>行程天数</small></div>
+            </article>
+            <article class="metric-card">
+              <span class="metric-icon" aria-hidden="true">¥</span>
+              <div><strong id="metric-budget">--</strong><small>预计总费用</small></div>
+            </article>
+            <article class="metric-card">
+              <span class="metric-icon" aria-hidden="true">≡</span>
+              <div><strong id="metric-citations">-- 条</strong><small>证据来源</small></div>
+            </article>
+            <article class="metric-card">
+              <span class="metric-icon" aria-hidden="true">◇</span>
+              <div><strong id="metric-review">待审核</strong><small>最终审核</small></div>
+            </article>
+          </div>
+
+          <ol id="runtime-pipeline" class="runtime-pipeline" aria-label="当前执行进度">
+            <li data-step="0"><i>1</i><span>RAG 检索</span></li>
+            <li data-step="1"><i>2</i><span>调研 Agent</span></li>
+            <li data-step="2"><i>3</i><span>规划 Agent</span></li>
+            <li data-step="3"><i>4</i><span>规则校验</span></li>
+            <li data-step="4"><i>5</i><span>审核 Agent</span></li>
+          </ol>
+
+          <div class="output-card">
+            <div class="tabs" role="tablist" aria-label="结果分类">
+              <button
+                class="tab is-active"
+                type="button"
+                role="tab"
+                aria-selected="true"
+                aria-controls="panel-itinerary"
+                data-tab="itinerary"
+              >
+                行程方案
+              </button>
+              <button
+                class="tab"
+                type="button"
+                role="tab"
+                aria-selected="false"
+                aria-controls="panel-research"
+                data-tab="research"
+              >
+                调研报告
+              </button>
+              <button
+                class="tab"
+                type="button"
+                role="tab"
+                aria-selected="false"
+                aria-controls="panel-evidence"
+                data-tab="evidence"
+              >
+                证据来源
+              </button>
+              <button
+                class="tab"
+                type="button"
+                role="tab"
+                aria-selected="false"
+                aria-controls="panel-review"
+                data-tab="review"
+              >
+                审核结果
+              </button>
+            </div>
+
+            <div id="empty-state" class="empty-state">
+              <div class="empty-orbit" aria-hidden="true">
+                <span>RAG</span>
+                <i></i>
+                <b>Agent</b>
+              </div>
+              <h3>准备生成一份有据可查的行程</h3>
+              <p>提交左侧需求后，这里将展示逐日方案、调研依据与审核结论。</p>
+            </div>
+
+            <div id="loading-state" class="loading-state" hidden>
+              <span class="loading-spinner" aria-hidden="true"></span>
+              <div>
+                <h3 id="loading-title">正在启动检索链路</h3>
+                <p>真实模式下可能需要 2–4 分钟，请保持页面开启。</p>
+              </div>
+            </div>
+
+            <div id="result" class="result-layout" hidden>
+              <div class="result-content">
+                <section
+                  id="panel-itinerary"
+                  class="tab-panel"
+                  role="tabpanel"
+                  data-panel="itinerary"
+                ></section>
+                <section
+                  id="panel-research"
+                  class="tab-panel"
+                  role="tabpanel"
+                  data-panel="research"
+                  hidden
+                ></section>
+                <section
+                  id="panel-evidence"
+                  class="tab-panel"
+                  role="tabpanel"
+                  data-panel="evidence"
+                  hidden
+                ></section>
+                <section
+                  id="panel-review"
+                  class="tab-panel"
+                  role="tabpanel"
+                  data-panel="review"
+                  hidden
+                ></section>
+              </div>
+              <aside id="evidence-summary" class="evidence-summary"></aside>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <dialog id="knowledge-dialog" class="knowledge-dialog" aria-labelledby="knowledge-title">
+      <div class="knowledge-dialog-shell">
+        <header class="knowledge-dialog-header">
+          <div>
+            <span class="section-kicker">LOCAL KNOWLEDGE CONSOLE</span>
+            <h2 id="knowledge-title">知识库管理</h2>
+            <p>查看当前 {{ mode | upper }} 索引，并将人工整理的内容写入源数据与向量库。</p>
+          </div>
+          <button id="knowledge-close" class="dialog-close" type="button" aria-label="关闭">
+            ×
+          </button>
+        </header>
+
+        <div class="knowledge-console">
+          <section class="knowledge-browser" aria-labelledby="knowledge-browser-title">
+            <div class="knowledge-section-title">
+              <div>
+                <span>01</span>
+                <h3 id="knowledge-browser-title">浏览与查询</h3>
+              </div>
+              <strong id="knowledge-result-count">-- 条</strong>
+            </div>
+            <form id="knowledge-search-form" class="knowledge-search-form">
+              <label>
+                <span>知识类型</span>
+                <select name="kind">
+                  <option value="all">全部知识</option>
+                  <option value="cases">历史案例</option>
+                  <option value="experiences">旅行经验</option>
+                </select>
+              </label>
+              <label>
+                <span>目的地</span>
+                <input name="destination" maxlength="50" placeholder="如：北京；留空查全部" />
+              </label>
+              <label class="knowledge-query-field">
+                <span>关键词</span>
+                <input name="query" maxlength="200" placeholder="搜索标题、正文、标签或 ID" />
+              </label>
+              <button type="submit">查询</button>
+            </form>
+            <p class="knowledge-hint">这里执行可解释的关键词查询；旅行规划仍使用向量召回与 BGE 重排。</p>
+            <div id="knowledge-list" class="knowledge-list" aria-live="polite"></div>
+            <div class="knowledge-pagination">
+              <button id="knowledge-prev" type="button">← 上一页</button>
+              <span id="knowledge-page">第 1 页</span>
+              <button id="knowledge-next" type="button">下一页 →</button>
+            </div>
+          </section>
+
+          <section class="knowledge-editor" aria-labelledby="knowledge-editor-title">
+            <div class="knowledge-section-title">
+              <div>
+                <span>02</span>
+                <h3 id="knowledge-editor-title">手动新增</h3>
+              </div>
+              <strong>只增不删</strong>
+            </div>
+            <form id="knowledge-create-form" class="knowledge-create-form">
+              <div class="grid-two">
+                <label>
+                  <span>知识类型</span>
+                  <select name="kind" id="knowledge-create-kind">
+                    <option value="cases">历史案例</option>
+                    <option value="experiences">旅行经验</option>
+                  </select>
+                </label>
+                <label>
+                  <span>目的地</span>
+                  <input name="destination" maxlength="50" placeholder="北京" required />
+                </label>
+              </div>
+              <label>
+                <span>标题</span>
+                <input name="title" minlength="2" maxlength="100" required />
+              </label>
+              <label>
+                <span>知识正文 <small>至少 10 个字符，写清适用条件</small></span>
+                <textarea name="text" minlength="10" maxlength="3000" required></textarea>
+              </label>
+              <div class="grid-two">
+                <label>
+                  <span>人群标签 <small>逗号分隔</small></span>
+                  <input name="traveler_tags" placeholder="家庭,儿童" />
+                </label>
+                <label>
+                  <span>兴趣标签 <small>逗号分隔</small></span>
+                  <input name="interest_tags" placeholder="历史,亲子" />
+                </label>
+              </div>
+
+              <div id="knowledge-case-fields" class="knowledge-kind-fields">
+                <div class="grid-three">
+                  <label>
+                    <span>天数</span>
+                    <input name="days" type="number" min="1" max="30" value="3" />
+                  </label>
+                  <label>
+                    <span>节奏</span>
+                    <select name="pace">
+                      <option value="relaxed">舒缓</option>
+                      <option value="balanced" selected>均衡</option>
+                      <option value="intensive">紧凑</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>预算级别</span>
+                    <select name="budget_level">
+                      <option value="low">经济</option>
+                      <option value="medium" selected>中等</option>
+                      <option value="high">较高</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              <div id="knowledge-experience-fields" class="knowledge-kind-fields" hidden>
+                <div class="grid-two">
+                  <label>
+                    <span>适用场景</span>
+                    <input name="scene" maxlength="50" placeholder="亲子 / 交通 / 预约" />
+                  </label>
+                  <label>
+                    <span>知识时效</span>
+                    <select name="freshness">
+                      <option value="stable">稳定经验</option>
+                      <option value="seasonal">季节性</option>
+                      <option value="realtime_required">需实时核验</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              <details class="knowledge-advanced-fields">
+                <summary>高级字段</summary>
+                <div class="grid-two">
+                  <label>
+                    <span>自定义 ID <small>留空自动生成</small></span>
+                    <input name="record_id" maxlength="80" placeholder="case-user-xxx" />
+                  </label>
+                  <label>
+                    <span>质量分</span>
+                    <input name="quality_score" type="number" min="0" max="1" step="0.01" value="0.80" />
+                  </label>
+                </div>
+              </details>
+
+              <label class="knowledge-confirm">
+                <input name="confirmed" type="checkbox" required />
+                <span>我已核对内容与时效标签；提交后将追加源数据并更新当前索引。</span>
+              </label>
+              <button id="knowledge-create-button" class="knowledge-create-button" type="submit">
+                保存并写入向量索引
+              </button>
+              <p id="knowledge-create-status" class="knowledge-create-status" aria-live="polite"></p>
+            </form>
+          </section>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="saved-plans-dialog" class="saved-plans-dialog" aria-labelledby="saved-plans-title">
+      <div class="saved-plans-shell">
+        <header class="knowledge-dialog-header">
+          <div>
+            <span class="section-kicker">PERSONAL ITINERARY LIBRARY</span>
+            <h2 id="saved-plans-title">我的行程</h2>
+            <p>这里保存完整结构化方案；下载文件仍由已保存数据按需生成。</p>
+          </div>
+          <button id="saved-plans-close" class="dialog-close" type="button" aria-label="关闭我的行程">
+            ×
+          </button>
+        </header>
+        <section class="saved-plans-content">
+          <form id="saved-plans-search-form" class="saved-plans-search-form">
+            <label>
+              <span>目的地</span>
+              <input name="destination" maxlength="50" placeholder="如：北京；留空查全部" />
+            </label>
+            <label>
+              <span>关键词</span>
+              <input name="query" maxlength="200" placeholder="搜索标题、目的地或请求 ID" />
+            </label>
+            <button type="submit">查询</button>
+          </form>
+          <div class="saved-plans-heading">
+            <p>SQLite 本地行程库</p>
+            <strong id="saved-plans-count">-- 条</strong>
+          </div>
+          <div id="saved-plans-list" class="saved-plans-list" aria-live="polite"></div>
+          <div class="knowledge-pagination">
+            <button id="saved-plans-prev" type="button">← 上一页</button>
+            <span id="saved-plans-page">第 1 页</span>
+            <button id="saved-plans-next" type="button">下一页 →</button>
+          </div>
+        </section>
+      </div>
+    </dialog>
+
+    <script src="{{ url_for('static', path='/app.js') }}"></script>
+  </body>
+</html>

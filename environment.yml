@@ -1,0 +1,7 @@
+name: travel-rag
+channels:
+  - https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main
+  - https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/r
+dependencies:
+  - python=3.11
+  - pip
