@@ -108,6 +108,7 @@ TAVILY_API_KEY=你的_TAVILY_KEY
 ```
 
 `.env.example` 仅提供键名与非敏感默认配置，真实 `.env` 已被 `.gitignore` 忽略。
+模型缓存默认写入项目下的 `.cache/`（同样被忽略）；如需将缓存放在其他磁盘，可在 `.env` 中覆盖 `HF_HOME` 与 `TORCH_HOME`。
 
 ### 2. 先运行不消耗 API 的 Mock Demo
 

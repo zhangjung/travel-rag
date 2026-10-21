@@ -40,8 +40,8 @@ class Settings(BaseSettings):
     embedding_device: Literal["cuda"] = "cuda"
     reranker_device: Literal["cuda"] = "cuda"
     model_local_files_only: bool = True
-    hf_home: Path = Path("D:/Anaconda_envs/pkgs/travel-rag/.cache/huggingface")
-    torch_home: Path = Path("D:/Anaconda_envs/pkgs/travel-rag/.cache/torch")
+    hf_home: Path = Path(".cache/huggingface")
+    torch_home: Path = Path(".cache/torch")
     chroma_dir: Path = PROJECT_ROOT / "data" / "index" / "chroma"
     knowledge_source_dir: Path = PROJECT_ROOT / "data" / "demo"
     plans_db_path: Path = PROJECT_ROOT / "data" / "user" / "travel-rag.sqlite3"
