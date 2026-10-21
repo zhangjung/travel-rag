@@ -32,6 +32,3 @@ artifacts/
 .DS_Store
 Thumbs.db
 
-# Private local documents
-RAG方案思考与选型.md
-张俊-算法工程师.md
